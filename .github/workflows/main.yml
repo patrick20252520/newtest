@@ -6,35 +6,21 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 3600
     steps:
-      - name: Ownership Verification (Encoded)
-        run: |
-          $encodedNotice = "Cj09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQogQ29weXJpZ2h0IMKpIDIwMjUgVG9vbGJveExhcC54eXogfCBodHRwczovL3d3dy50b29sYm94bGFwLnh5ei8KIEFsbCByaWdodHMgcmVzZXJ2ZWQuIERvIG5vdCByZW1vdmUgb3IgbW9kaWZ5IGNvcHlyaWdodCB0ZXh0LgogWW91VHViZTogaHR0cHM6Ly93d3cueW91dHViZS5jb20vY2hhbm5lbC9VQ0RUNGZzOUp3cm5RSVhQclhYOHlIZVEKIEZhY2Vib29rOiBodHRwczovL3d3dy5mYWNlYm9vay5jb20vcHJvZmlsZS5waHA/aWQ9NjE1Njc4OTY2OTI5OTQKIEFueSBjaGFuZ2VzIHdpbGwgYXV0b21hdGljYWxseSBkaXNhYmxlIHRoaXMgc2NyaXB0IQo9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0K"
-          $decodedNotice = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedNotice))
-          Write-Host $decodedNotice
-          if (-not $decodedNotice -or $decodedNotice -notlike "*ToolboxLap.xyz*") {
-              Write-Error "Copyright was tampered with or removed – script will not work!"
-              exit 1
-          }
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Core RDP Settings
+      - name: Ownership Verification
         run: |
-          $folderPath = "D:\link subscribe youtube channel"
-          if (-Not (Test-Path -Path $folderPath)) {
-              New-Item -Path $folderPath -ItemType Directory
-              Write-Host "Folder 'link subscribe youtube channel' has been created in D drive."
-          } else {
-              Write-Host "Folder 'link subscribe youtube channel' already exists in D drive."
-          }
-          
-          $scriptFolderPath = "D:\Script"
-          if (-Not (Test-Path -Path $scriptFolderPath)) {
-              New-Item -Path $scriptFolderPath -ItemType Directory
-              Write-Host "Folder 'Script' has been created in D drive."
-          } else {
-              Write-Host "Folder 'Script' already exists in D drive."
-          }
+          Write-Host "ToolboxLap.xyz - RDP Workflow"
+          Write-Host "All rights reserved"
 
-      - name: Configure Core RDP Settings
+      - name: Create Directories
+        run: |
+          New-Item -Path "D:\link subscribe youtube channel" -ItemType Directory -Force
+          New-Item -Path "D:\Script" -ItemType Directory -Force
+          Write-Host "Directories created successfully"
+
+      - name: Configure RDP Settings
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name "UserAuthentication" -Value 0 -Force
@@ -43,86 +29,66 @@ jobs:
           netsh advfirewall firewall add rule name="RDP-Tailscale" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
 
-      - name: Create RDP User with Static Password
+      - name: Create RDP User
         run: |
           $password = "admin@123"
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
-
           if (-not (Get-LocalUser -Name "TOOLBOXLAP" -ErrorAction SilentlyContinue)) {
               New-LocalUser -Name "TOOLBOXLAP" -Password $securePass -AccountNeverExpires
           }
-          Add-LocalGroupMember -Group "Administrators" -Member "TOOLBOXLAP"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TOOLBOXLAP"
-          echo "RDP_CREDS=User: TOOLBOXLAP | Password: $password" >> $env:GITHUB_ENV
-          if (-not (Get-LocalUser -Name "TOOLBOXLAP")) {
-              Write-Error "User creation failed"
-              exit 1
-          }
+          Add-LocalGroupMember -Group "Administrators" -Member "TOOLBOXLAP" -ErrorAction SilentlyContinue
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "TOOLBOXLAP" -ErrorAction SilentlyContinue
 
-      - name: Install Tor Browser (Local)
+      - name: Install Tor Browser
         run: |
-          Write-Host "Installing Tor Browser from local file..."
-          $torLocalPath = ".\tor-browser-windows-x86_64-portable-14.5.6.exe"
-          $torTempPath = "$env:TEMP\tor-browser-installer.exe"
-          
-          # Copy local file to temp directory
-          if (Test-Path $torLocalPath) {
-              Copy-Item $torLocalPath $torTempPath
-              Write-Host "✅ Tor Browser file copied from repo"
+          if (Test-Path ".\tor-browser-windows-x86_64-portable-14.5.6.exe") {
+              Copy-Item ".\tor-browser-windows-x86_64-portable-14.5.6.exe" "$env:TEMP\tor-installer.exe"
+              Start-Process -FilePath "$env:TEMP\tor-installer.exe" -ArgumentList "/S" -Wait
+              Write-Host "Tor Browser installed from local file"
           } else {
-              Write-Error "❌ Tor Browser file not found in repo!"
-              exit 1
+              Write-Host "Tor Browser file not found, skipping installation"
           }
-          
-          # Install Tor Browser (portable version)
-          Write-Host "Installing Tor Browser (Portable)..."
-          Start-Process -FilePath $torTempPath -ArgumentList "/S", "/D=C:\Tor Browser" -Wait
-          Remove-Item $torTempPath -Force
-          Write-Host "✅ Tor Browser installed successfully from local file!"
 
-      - name: Install Python Dependencies
+      - name: Install Python and Dependencies
         run: |
-          Write-Host "Installing Python dependencies..."
-          
-          # Check if Python is available
+          # Check Python
           try {
               $pythonVersion = python --version
-              Write-Host "✅ Python found: $pythonVersion"
+              Write-Host "Python found: $pythonVersion"
           } catch {
-              Write-Error "❌ Python not found! Installing Python..."
-              # Download and install Python
+              # Install Python
               $pythonUrl = "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe"
               $pythonInstaller = "$env:TEMP\python-installer.exe"
               Invoke-WebRequest -Uri $pythonUrl -OutFile $pythonInstaller
               Start-Process -FilePath $pythonInstaller -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1" -Wait
               Remove-Item $pythonInstaller -Force
-              # Refresh PATH
-              $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH", "User")
           }
           
-          # Upgrade pip
-          Write-Host "Upgrading pip..."
-          python -m pip install --upgrade pip
-          
-          # Copy requirements.txt from repo
-          $reqPath = ".\requirements.txt"
-          if (Test-Path $reqPath) {
-              Write-Host "✅ Found requirements.txt in repo"
-              Copy-Item $reqPath "$env:TEMP\requirements.txt"
-              
-              # Install dependencies
-              Write-Host "Installing Python packages..."
-              python -m pip install -r "$env:TEMP\requirements.txt"
-              Write-Host "✅ All Python dependencies installed successfully!"
-              
-              # List installed packages
-              Write-Host "📦 Installed packages:"
-              python -m pip list | Select-String -Pattern "selenium|requests|pysocks|stem|blinker"
-              
-          } else {
-              Write-Error "❌ requirements.txt not found in repo!"
-              exit 1
+          # Install packages
+          if (Test-Path ".\requirements.txt") {
+              python -m pip install --upgrade pip
+              python -m pip install -r ".\requirements.txt"
+              Write-Host "Python dependencies installed"
           }
+
+      - name: Copy Python Scripts
+        run: |
+          # Copy scripts from repository to D:\Script\
+          if (Test-Path ".\FINAL_3_WINDOWS_TRUSTWORTHY.py") {
+              Copy-Item ".\FINAL_3_WINDOWS_TRUSTWORTHY.py" "D:\Script\"
+              Write-Host "FINAL_3_WINDOWS_TRUSTWORTHY.py copied"
+          }
+          if (Test-Path ".\FINAL_3_WINDOWS_TRUSTWORTHY-original.py") {
+              Copy-Item ".\FINAL_3_WINDOWS_TRUSTWORTHY-original.py" "D:\Script\"
+              Write-Host "FINAL_3_WINDOWS_TRUSTWORTHY-original.py copied"
+          }
+          if (Test-Path ".\usa_residential_gui.py") {
+              Copy-Item ".\usa_residential_gui.py" "D:\Script\"
+              Write-Host "usa_residential_gui.py copied"
+          }
+          
+          Write-Host "Script folder contents:"
+          Get-ChildItem "D:\Script\" | ForEach-Object { Write-Host "  - $($_.Name)" }
 
       - name: Install Tailscale
         run: |
@@ -132,7 +98,7 @@ jobs:
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
 
-      - name: Establish Tailscale Connection
+      - name: Connect Tailscale
         run: |
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
           $tsIP = $null
@@ -143,593 +109,35 @@ jobs:
               $retries++
           }
           if (-not $tsIP) {
-              Write-Error "Tailscale IP not assigned. Exiting."
+              Write-Error "Tailscale IP not assigned"
               exit 1
           }
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
 
-      - name: Verify RDP Accessibility
+      - name: Verify RDP
         run: |
           Write-Host "Tailscale IP: $env:TAILSCALE_IP"
           $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
           if (-not $testResult.TcpTestSucceeded) {
-              Write-Error "TCP connection to RDP port 3389 failed"
+              Write-Error "RDP connection test failed"
               exit 1
           }
-          Write-Host "TCP connectivity successful!"
-
-      - name: Deploy Python Scripts to Script Folder
-        run: |
-          Write-Host "Deploying Python scripts to D:\Script\"
-          
-          # Create FINAL_3_WINDOWS_TRUSTWORTHY.py
-          $script1Content = @'
-#!/usr/bin/env python3
-"""
-🏆 SCRIPT FINAL - 3 FENÊTRES TRUSTWORTHY (5/5)
-Stratégie gagnante appliquée sur 3 profils simultanés
-"""
-
-import time
-import json
-from selenium.webdriver.chrome.options import Options
-from seleniumwire import webdriver as wire_webdriver
-
-def launch_trustworthy_profile(name, gpu, seed, port, window_x=50, window_y=50, urls=None):
-    """Lance un profil avec la stratégie TRUSTWORTHY (5/5)"""
-    
-    print(f"\n🚀 Lancement: {name} (GPU: {gpu}, Port: {port})")
-    
-    # Options Chrome
-    chrome_options = Options()
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument(f"--user-data-dir=C:/temp/trustworthy_{name}")
-    chrome_options.add_argument(f"--window-position={window_x},{window_y}")
-    chrome_options.add_argument("--window-size=1200,800")
-    
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    
-    # WEBRTC BLOCKING - CRITICAL !
-    chrome_options.add_argument('--force-webrtc-ip-handling-policy=disable_non_proxied_udp')
-    chrome_options.add_argument('--enforce-webrtc-ip-permission-check')
-    chrome_options.add_experimental_option('prefs', {
-        'webrtc.ip_handling_policy': 'disable_non_proxied_udp',
-        'webrtc.multiple_routes_enabled': False,
-        'webrtc.nonproxied_udp_enabled': False
-    })
-    
-    # Proxy configuration
-    tor_username = f"root-{port}"
-    proxy_options = {
-        'proxy': {
-            'http': f'socks5://{tor_username}:WelcomeatTor@127.0.0.1:{port}',
-            'https': f'socks5://{tor_username}:WelcomeatTor@127.0.0.1:{port}',
-            'no_proxy': 'localhost,127.0.0.1'
-        }
-    }
-    
-    print(f"  [1/6] Lancement Chrome...")
-    driver = wire_webdriver.Chrome(options=chrome_options, seleniumwire_options=proxy_options)
-    
-    # Fingerprinting script
-    script = f"""
-(() => {{
-  // Anti-detection
-  try {{
-    Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined }});
-    const badKeys = [/^(?:_?cdc_|__webdriver|selenium|webdriver|__driver)/i];
-    for (const k of Object.keys(window)) {{
-      if (badKeys.some(r=>r.test(k))) {{ try {{ delete window[k]; }} catch(e) {{}} }}
-    }}
-  }} catch(e) {{}}
-  
-  console.log('✅ {name} - Script loaded (Seed:', {seed}, ')');
-}})();
-"""
-    
-    print(f"  [2/6] Injection script CDP...")
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': script})
-    
-    print(f"  [3/6] Navigation...")
-    driver.get('https://iphey.com/')
-    time.sleep(3)
-    
-    print(f"  [4/6] ✅ {name} prêt!")
-    return driver
-
-def main():
-    print("🏆 MULTI-PROFILS TRUSTWORTHY - Residential Proxy System")
-    print("Configuration: socks5://root-{port}:WelcomeatTor@127.0.0.1:{port}")
-    
-    # Example usage
-    driver = launch_trustworthy_profile("Test", "nvidia", 12345, 65237)
-    
-    try:
-        input("Press Enter to close...")
-    finally:
-        driver.quit()
-
-if __name__ == "__main__":
-    main()
-'@
-          
-          # Create usa_residential_gui.py
-          $script2Content = @'
-#!/usr/bin/env python3
-"""
-USA Residential GUI - Interface graphique
-Basé sur la configuration qui marche parfaitement !
-"""
-
-import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
-import threading
-import socket
-import time
-import random
-
-class USAResidentialGUI:
-    """Interface graphique pour le générateur USA résidentiel"""
-    
-    def __init__(self):
-        self.root = tk.Tk()
-        self.base_port = 65235
-        self.num_ports = 5
-        self.running_servers = {}
-        
-        # IPs résidentielles USA par compagnie
-        self.residential_ips = {
-            0: {'ip': '73.158.64.15', 'org': 'AS7922 Comcast Cable Communications, LLC', 'city': 'Philadelphia', 'state': 'Pennsylvania'},
-            1: {'ip': '99.203.128.45', 'org': 'AS7018 AT&T Services, Inc.', 'city': 'Dallas', 'state': 'Texas'},
-            2: {'ip': '108.48.156.78', 'org': 'AS701 Verizon Business', 'city': 'New York', 'state': 'New York'},
-            3: {'ip': '68.4.56.123', 'org': 'AS22773 Cox Communications', 'city': 'Las Vegas', 'state': 'Nevada'},
-            4: {'ip': '24.56.178.123', 'org': 'AS20115 Charter Communications', 'city': 'St. Louis', 'state': 'Missouri'}
-        }
-        
-        self.setup_gui()
-    
-    def setup_gui(self):
-        """Configuration de l'interface"""
-        self.root.title("🇺🇸 USA Residential Multi-IP Generator")
-        self.root.geometry("1200x800")
-        self.root.configure(bg='#f0f0f0')
-        
-        # Titre
-        title_frame = tk.Frame(self.root, bg='#1976D2', height=80)
-        title_frame.pack(fill='x')
-        title_frame.pack_propagate(False)
-        
-        title_label = tk.Label(title_frame, text="🇺🇸 USA RESIDENTIAL MULTI-IP GENERATOR", 
-                              font=('Arial', 20, 'bold'), bg='#1976D2', fg='white')
-        title_label.pack(expand=True)
-        
-        subtitle_label = tk.Label(title_frame, text="Residential Proxy System - Configuration qui marche !", 
-                                 font=('Arial', 12), bg='#1976D2', fg='#BBDEFB')
-        subtitle_label.pack()
-        
-        # Configuration frame
-        config_frame = tk.LabelFrame(self.root, text="⚙️ Configuration", 
-                                   font=('Arial', 12, 'bold'), bg='#f0f0f0')
-        config_frame.pack(fill='x', padx=20, pady=20)
-        
-        tk.Label(config_frame, text="Format SOCKS5: socks5://root-{port}:WelcomeatTor@127.0.0.1:{port}", 
-                font=('Arial', 11, 'bold'), bg='#f0f0f0', fg='#1976D2').pack(pady=10)
-        
-        # Buttons
-        button_frame = tk.Frame(self.root, bg='#f0f0f0')
-        button_frame.pack(pady=20)
-        
-        start_btn = tk.Button(button_frame, text="🚀 Start Residential System", 
-                             font=('Arial', 12, 'bold'), bg='#4CAF50', fg='white',
-                             command=self.start_system)
-        start_btn.pack(side='left', padx=10)
-        
-        stop_btn = tk.Button(button_frame, text="🛑 Stop System", 
-                            font=('Arial', 12, 'bold'), bg='#f44336', fg='white',
-                            command=self.stop_system)
-        stop_btn.pack(side='left', padx=10)
-        
-        # Status
-        self.status_text = scrolledtext.ScrolledText(self.root, height=15, width=80)
-        self.status_text.pack(fill='both', expand=True, padx=20, pady=(0, 20))
-        
-    def start_system(self):
-        """Démarre le système résidentiel"""
-        self.log("🚀 Starting USA Residential Proxy System...")
-        self.log("Configuration: socks5://root-{port}:WelcomeatTor@127.0.0.1:{port}")
-        self.log("✅ System ready for residential proxy connections!")
-        
-    def stop_system(self):
-        """Arrête le système"""
-        self.log("🛑 Stopping system...")
-        
-    def log(self, message):
-        """Ajoute un message au log"""
-        timestamp = time.strftime("%H:%M:%S")
-        self.status_text.insert(tk.END, f"[{timestamp}] {message}\n")
-        self.status_text.see(tk.END)
-        self.root.update()
-    
-    def run(self):
-        """Lance l'interface"""
-        self.root.mainloop()
-
-def main():
-    app = USAResidentialGUI()
-    app.run()
-
-if __name__ == "__main__":
-    main()
-'@
-          
-          # Create FINAL_3_WINDOWS_TRUSTWORTHY-original.py
-          $script3Content = @'
-#!/usr/bin/env python3
-"""
-🏆 SCRIPT FINAL - 3 FENÊTRES TRUSTWORTHY (5/5)
-Stratégie gagnante appliquée sur 3 profils simultanés
-"""
-
-import time
-import json
-from selenium.webdriver.chrome.options import Options
-from seleniumwire import webdriver as wire_webdriver
-
-def launch_trustworthy_profile(name, gpu, seed, port):
-    """Lance un profil avec la stratégie TRUSTWORTHY (5/5)"""
-    
-    print(f"\n🚀 Lancement: {name} (GPU: {gpu}, Port: {port})")
-    
-    # Options Chrome
-    chrome_options = Options()
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument(f"--user-data-dir=C:/temp/trustworthy_{name}")
-    chrome_options.add_argument("--start-maximized")
-    chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-    chrome_options.add_experimental_option('useAutomationExtension', False)
-    chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-    
-    # WEBRTC BLOCKING - CRITICAL !
-    chrome_options.add_argument('--force-webrtc-ip-handling-policy=disable_non_proxied_udp')
-    chrome_options.add_argument('--enforce-webrtc-ip-permission-check')
-    chrome_options.add_experimental_option('prefs', {
-        'webrtc.ip_handling_policy': 'disable_non_proxied_udp',
-        'webrtc.multiple_routes_enabled': False,
-        'webrtc.nonproxied_udp_enabled': False
-    })
-    
-    # Proxy Tor (format original)
-    tor_username = f"trustworthy-{name}-{int(time.time())}"
-    proxy_options = {
-        'proxy': {
-            'http': f'socks5://{tor_username}:@127.0.0.1:{port}',
-            'https': f'socks5://{tor_username}:@127.0.0.1:{port}',
-            'no_proxy': 'localhost,127.0.0.1'
-        }
-    }
-    
-    print(f"  [1/6] Lancement Chrome...")
-    driver = wire_webdriver.Chrome(options=chrome_options, seleniumwire_options=proxy_options)
-    
-    # Script complet TRUSTWORTHY avec fingerprinting avancé
-    script = f"""
-(() => {{
-  // SOFTWARE
-  try {{
-    Object.defineProperty(navigator, 'webdriver', {{ get: () => undefined }});
-    const badKeys = [/^(?:_?cdc_|__webdriver|selenium|webdriver|__driver)/i];
-    for (const k of Object.keys(window)) {{
-      if (badKeys.some(r=>r.test(k))) {{ try {{ delete window[k]; }} catch(e) {{}} }}
-    }}
-  }} catch(e) {{}}
-  
-  // WEBRTC BLOCKING - COMPLETE DISABLE
-  try {{
-    if (window.RTCPeerConnection) {{
-      const RealRTCPeerConnection = window.RTCPeerConnection;
-      window.RTCPeerConnection = function(...args) {{
-        throw new Error('WebRTC is disabled for privacy');
-      }};
-      window.RTCPeerConnection.prototype = RealRTCPeerConnection.prototype;
-    }}
-    if (window.webkitRTCPeerConnection) {{
-      window.webkitRTCPeerConnection = window.RTCPeerConnection;
-    }}
-    if (window.mozRTCPeerConnection) {{
-      window.mozRTCPeerConnection = window.RTCPeerConnection;
-    }}
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {{
-      navigator.mediaDevices.getUserMedia = () => {{
-        return Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
-      }};
-    }}
-    if (navigator.getUserMedia) {{
-      navigator.getUserMedia = function(constraints, success, error) {{
-        error(new DOMException('Permission denied', 'NotAllowedError'));
-      }};
-    }}
-    console.log('✅ WebRTC BLOQUÉ');
-  }} catch(e) {{}}
-  
-  // HARDWARE FINGERPRINTING
-  function __hashStr(str) {{
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {{
-      const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }}
-    return Math.abs(hash);
-  }}
-  
-  const seed = {seed};
-  
-  // WebGL fingerprinting avec paramètres uniques
-  if (window.WebGLRenderingContext) {{
-    const webglParams = {{
-      maxTextureSize: 16384 + (seed % 3) * 8192,
-      maxVertexAttribs: 16 + (seed % 2) * 16,
-      maxVaryingVectors: 16 + (seed % 3) * 8,
-      maxFragmentUniforms: 1024 + (seed % 2) * 1024,
-      maxVertexUniforms: 1024 + (seed % 3) * 512
-    }};
-    
-    const originalGetContext = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function(contextType, contextAttributes) {{
-      const context = originalGetContext.call(this, contextType, contextAttributes);
-      if (context && (contextType === 'webgl' || contextType === 'experimental-webgl')) {{
-        const originalGetParam = context.getParameter;
-        context.getParameter = function(pname) {{
-          const result = originalGetParam.call(this, pname);
-          
-          // GPU Vendor & Renderer
-          if (pname === 7937) {{
-            if ('{gpu}' === 'intel') return 'ANGLE (Intel, Intel(R) HD Graphics 620 Direct3D11 vs_5_0 ps_5_0)';
-            if ('{gpu}' === 'nvidia') return 'ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 Direct3D11 vs_5_0 ps_5_0)';
-            return 'ANGLE (AMD, AMD Radeon RX 580 Direct3D11 vs_5_0 ps_5_0)';
-          }}
-          if (pname === 7936) {{
-            if ('{gpu}' === 'intel') return 'Google Inc. (Intel)';
-            if ('{gpu}' === 'nvidia') return 'Google Inc. (NVIDIA)';
-            return 'Google Inc. (AMD)';
-          }}
-          
-          // Paramètres de capacité différents selon seed
-          if (pname === 3379 || pname === 0xD33) return webglParams.maxTextureSize;
-          if (pname === 34076 || pname === 0x853C) return webglParams.maxTextureSize;
-          if (pname === 35071 || pname === 0x88FF) return webglParams.maxTextureSize;
-          if (pname === 34921 || pname === 0x8869) return webglParams.maxVertexAttribs;
-          if (pname === 36348 || pname === 0x8DFC) return webglParams.maxVaryingVectors;
-          if (pname === 35660 || pname === 0x8B4C) return webglParams.maxVertexUniforms;
-          if (pname === 35661 || pname === 0x8B4D) return webglParams.maxFragmentUniforms;
-          
-          return result;
-        }};
-      }}
-      return context;
-    }};
-  }}
-  
-  console.log('✅ {name} - Script chargé (Seed:', seed, ')');
-}})();
-"""
-    
-    print(f"  [2/6] Injection script CDP...")
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': script})
-    
-    print(f"  [3/6] Détection géolocalisation...")
-    driver.get('https://ipwho.is/?output=json')
-    time.sleep(3)
-    
-    timezone = 'America/New_York'
-    locale = 'en-US'
-    language = 'en-US'
-    languages = ['en-US', 'en']
-    
-    try:
-        geo_text = driver.execute_script("return document.body.innerText || ''")
-        data = json.loads(geo_text)
-        
-        tz = data.get('timezone')
-        if isinstance(tz, dict):
-            timezone = tz.get('id') or timezone
-        elif isinstance(tz, str):
-            timezone = tz
-        
-        country_code = data.get('country_code', 'US')
-        if country_code == 'US':
-            locale = 'en-US'
-            language = 'en-US'
-            languages = ['en-US', 'en']
-        elif country_code == 'GB':
-            locale = 'en-GB'
-            language = 'en-GB'
-            languages = ['en-GB', 'en']
-        elif country_code == 'FR':
-            locale = 'fr-FR'
-            language = 'fr-FR'
-            languages = ['fr-FR', 'fr']
-        elif country_code == 'DE':
-            locale = 'de-DE'
-            language = 'de-DE'
-            languages = ['de-DE', 'de']
-        else:
-            locale = 'en-US'
-            language = 'en-US'
-            languages = ['en-US', 'en']
-        
-        print(f"  [OK] Pays: {country_code}, TZ: {timezone}, Langue: {language}")
-    except Exception as e:
-        print(f"  [WARN] Défaut: {timezone}, {language}")
-    
-    print(f"  [4/6] Configuration CDP...")
-    driver.execute_cdp_cmd('Emulation.setTimezoneOverride', {'timezoneId': timezone})
-    driver.execute_cdp_cmd('Emulation.setLocaleOverride', {'locale': locale})
-    
-    lang_script = f"""
-(() => {{
-  try {{
-    Object.defineProperty(navigator, 'language', {{
-      get: () => '{language}',
-      configurable: true
-    }});
-    Object.defineProperty(navigator, 'languages', {{
-      get: () => {json.dumps(languages)},
-      configurable: true
-    }});
-  }} catch(e) {{}}
-}})();
-"""
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {'source': lang_script})
-    
-    print(f"  [5/6] Navigation iphey.com...")
-    driver.get('https://iphey.com/')
-    
-    print(f"  [6/6] ✅ {name} prêt!")
-    return driver
-
-def generate_profiles(num_windows):
-    """Génère N profils avec GPU et ports incrémentés automatiquement"""
-    
-    base_seeds = [266762871, 3679359477, 1548729463, 987654321, 456789123, 
-                  789456123, 321654987, 654123789, 159357246, 753159842]
-    gpu_types = ['intel', 'nvidia', 'amd']
-    gpu_names = {
-        'intel': 'Intel_HD620',
-        'nvidia': 'NVIDIA_GTX1060',
-        'amd': 'AMD_RX580'
-    }
-    
-    profiles = []
-    base_port = 65235
-    
-    for i in range(num_windows):
-        gpu = gpu_types[i % 3]  # Rotation intel, nvidia, amd
-        seed = base_seeds[i % len(base_seeds)] + i * 12345  # Seed unique
-        port = base_port + i
-        
-        profiles.append({
-            'name': f'{gpu_names[gpu]}_{i+1}',
-            'gpu': gpu,
-            'seed': seed,
-            'port': port
-        })
-    
-    return profiles
-
-def main():
-    print("""
-╔══════════════════════════════════════════════════════════════════╗
-║        🏆 MULTI-FENÊTRES TRUSTWORTHY (5/5) - ORIGINAL          ║
-║                                                                  ║
-║  Stratégie gagnante avec nombre de fenêtres personnalisable    ║
-╚══════════════════════════════════════════════════════════════════╝
-""")
-    
-    # Demander le nombre de fenêtres
-    while True:
-        try:
-            num_windows = int(input("\n🔢 Combien de fenêtres voulez-vous ouvrir ? (1-10) : "))
-            if 1 <= num_windows <= 10:
-                break
-            else:
-                print("❌ Veuillez entrer un nombre entre 1 et 10")
-        except ValueError:
-            print("❌ Veuillez entrer un nombre valide")
-    
-    print(f"\n✅ Génération de {num_windows} profil(s)...")
-    profiles = generate_profiles(num_windows)
-    
-    # Afficher les profils générés
-    print(f"\n📋 Profils générés :")
-    for i, p in enumerate(profiles, 1):
-        print(f"  {i}. {p['name']} - GPU: {p['gpu']}, Port: {p['port']}, Seed: {p['seed']}")
-    
-    input("\n⏸️  Appuyez sur Entrée pour lancer les fenêtres...")
-    
-    browsers = []
-    
-    print(f"\n🚀 Lancement des {num_windows} profil(s)...")
-    print(f"{'='*70}\n")
-    
-    for i, profile in enumerate(profiles):
-        try:
-            driver = launch_trustworthy_profile(**profile)
-            browsers.append({
-                'driver': driver,
-                'name': profile['name']
-            })
-            
-            # Délai de 15 secondes entre chaque fenêtre (sauf après la dernière)
-            if i < len(profiles) - 1:
-                print(f"\n⏳ Attente 15 secondes avant la prochaine fenêtre...")
-                time.sleep(15)
-        except Exception as e:
-            print(f"❌ Erreur {profile['name']}: {e}")
-    
-    print(f"\n{'='*70}")
-    print(f"✅ {len(browsers)}/{num_windows} fenêtre(s) lancée(s) avec succès!")
-    print(f"🏆 Toutes devraient afficher TRUSTWORTHY (5/5)")
-    print(f"{'='*70}")
-    
-    print(f"\n⏸️  Vérifiez les résultats sur les {num_windows} fenêtre(s)")
-    print(f"Appuyez sur Entrée pour fermer toutes les fenêtres...")
-    input()
-    
-    print(f"\n🔒 Fermeture des fenêtres...")
-    for b in browsers:
-        try:
-            print(f"  Fermeture {b['name']}...")
-            b['driver'].quit()
-        except:
-            pass
-    
-    print(f"\n✅ Terminé!")
-
-if __name__ == "__main__":
-    main()
-'@
-          
-          # Write files to D:\Script\
-          $script1Content | Out-File -FilePath "D:\Script\FINAL_3_WINDOWS_TRUSTWORTHY.py" -Encoding UTF8
-          $script2Content | Out-File -FilePath "D:\Script\usa_residential_gui.py" -Encoding UTF8
-          $script3Content | Out-File -FilePath "D:\Script\FINAL_3_WINDOWS_TRUSTWORTHY-original.py" -Encoding UTF8
-          
-          Write-Host "✅ FINAL_3_WINDOWS_TRUSTWORTHY.py created in D:\Script\"
-          Write-Host "✅ usa_residential_gui.py created in D:\Script\"
-          Write-Host "✅ FINAL_3_WINDOWS_TRUSTWORTHY-original.py created in D:\Script\"
-          Write-Host "📁 Script folder contents:"
-          Get-ChildItem "D:\Script\" | ForEach-Object { Write-Host "  - $($_.Name)" }
+          Write-Host "RDP connectivity verified"
 
       - name: Maintain Connection
         run: |
-          $ownershipNotice = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("Cj09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQogQ29weXJpZ2h0IMKpIDIwMjUgVG9vbGJveExhcC54eXogfCBodHRwczovL3d3dy50b29sYm94bGFwLnh5ei8KIEFsbCByaWdodHMgcmVzZXJ2ZWQuIERvIG5vdCByZW1vdmUgb3IgbW9kaWZ5IGNvcHlyaWdodCB0ZXh0LgogWW91VHViZTogaHR0cHM6Ly93d3cueW91dHViZS5jb20vY2hhbm5lbC9VQ0RUNGZzOUp3cm5RSVhQclhYOHlIZVEKIEZhY2Vib29rOiBodHRwczovL3d3dy5mYWNlYm9vay5jb20vcHJvZmlsZS5waHA/aWQ9NjE1Njc4OTY2OTI5OTQKIEFueSBjaGFuZ2VzIHdpbGwgYXV0b21hdGljYWxseSBkaXNhYmxlIHRoaXMgc2NyaXB0IQo9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0K"))
-          Write-Host $ownershipNotice
-          Write-Host "`n=== RDP ACCESS ==="
+          Write-Host "=== RDP ACCESS ==="
           Write-Host "Address: $env:TAILSCALE_IP"
           Write-Host "Username: TOOLBOXLAP"
           Write-Host "Password: admin@123"
-          Write-Host "Powered by https://www.toolboxlap.xyz/"
-          Write-Host "========= All rights reserved =========`n"
-          Write-Host "`n=== PYTHON ENVIRONMENT READY ==="
-          Write-Host "Python: Installed with all dependencies"
-          Write-Host "Packages: selenium, selenium-wire, requests, pysocks, stem, blinker"
+          Write-Host "==================="
           Write-Host ""
-          Write-Host "📁 Available Scripts in D:\Script\"
-          Write-Host "  1. FINAL_3_WINDOWS_TRUSTWORTHY.py - Multi-browser (updated format)"
-          Write-Host "  2. FINAL_3_WINDOWS_TRUSTWORTHY-original.py - Multi-browser (original)"
-          Write-Host "  3. usa_residential_gui.py - Residential proxy GUI"
+          Write-Host "Python Scripts Available in D:\Script\"
+          Write-Host "- FINAL_3_WINDOWS_TRUSTWORTHY.py"
+          Write-Host "- FINAL_3_WINDOWS_TRUSTWORTHY-original.py" 
+          Write-Host "- usa_residential_gui.py"
           Write-Host ""
-          Write-Host "Usage Examples:"
-          Write-Host "  python D:\Script\FINAL_3_WINDOWS_TRUSTWORTHY.py"
-          Write-Host "  python D:\Script\FINAL_3_WINDOWS_TRUSTWORTHY-original.py"
-          Write-Host "  python D:\Script\usa_residential_gui.py"
-          Write-Host "========================================`n"
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP Active - Use Ctrl+C in workflow to terminate"
+              Write-Host "[$(Get-Date)] RDP Active - Use Ctrl+C to terminate"
               Start-Sleep -Seconds 300
           }
